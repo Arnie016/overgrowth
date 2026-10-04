@@ -8,11 +8,11 @@
     runner: { idle: 'runner_Idle', walk: 'clicker_Slow_Orc_Walk_inplace', run: 'runner_Standard_Forward_Charge_inplace', scream: 'runner_Zombie_Scream', attack: 'runner_Punch_Forward_with_Both_Fists', death: 'runner_Shot_and_Fall_Backward', stagger: 'clicker_Mummy_Stagger_inplace' },
     clicker: { idle: 'clicker_Idle', walk: 'clicker_Slow_Orc_Walk_inplace', run: 'runner_Standard_Forward_Charge_inplace', scream: 'clicker_Zombie_Scream', attack: 'clicker_Punch_Forward_with_Both_Fists', death: 'clicker_Shot_and_Blown_Back', stagger: 'clicker_Mummy_Stagger_inplace' },
   };
-  const PROPS = ['sedan', 'barrel', 'crate', 'dumpster', 'fungus_cluster', 'fungus_column', 'fungal_cocoon', 'generator', 'boiler', 'sofa', 'wardrobe', 'kitchen_table', 'pharmacy_shelf', 'pharmacy_counter', 'plank'];
+  const PROPS = ['pistol', 'sedan', 'barrel', 'crate', 'dumpster', 'fungus_cluster', 'fungus_column', 'fungal_cocoon', 'generator', 'boiler', 'sofa', 'wardrobe', 'kitchen_table', 'pharmacy_shelf', 'pharmacy_counter', 'plank'];
   const TEX = ['asphalt_wet', 'brick_wet', 'fungal_wall', 'fungal_mat_floor', 'concrete_interior', 'steel_door'];
 
   // the artifact host serves binaries only under web types, so deployed copies carry a .wasm suffix
-  const SUFFIX = /^(localhost|127\.)/.test(location.hostname) ? '' : '.wasm';
+  const SUFFIX = ''; // GitHub Pages serves the original GLB files
   function loadGLB(loader, url) {
     url += SUFFIX;
     return new Promise((res) => loader.load(url, res, undefined, () => res(null)));
@@ -67,7 +67,7 @@
     model.rotation.y = Math.PI; // models face +z, the game faces -z
     if (opts.scale) model.scale.setScalar(opts.scale);
     if (opts.tint) model.traverse((o) => { if (o.isMesh) { o.material = o.material.clone(); o.material.color.multiply(new THREE.Color(opts.tint)); } });
-    model.traverse((o) => { if (o.isMesh) o.userData.e = group.userData.e; });
+    model.traverse((o) => { if (o.isMesh) { o.userData.e = group.userData.e; o.frustumCulled = false; } });
     group.add(model);
     const mixer = new THREE.AnimationMixer(model);
     const map = CLIPS[srcKind];

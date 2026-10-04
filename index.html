@@ -52,11 +52,18 @@ canvas{display:block}
 #go{justify-self:start;font-family:var(--display);font-size:20px;background:var(--rust);color:#1a0d06;border:0;padding:12px 26px;cursor:pointer}
 #go:disabled{opacity:.6;cursor:wait}
 #go:focus-visible{outline:2px solid var(--ink);outline-offset:3px}
+#inventory{position:fixed;inset:0;background:#0009;display:grid;place-items:center;z-index:30;padding:12px}
+#inventory .box{background:#c6c6c6;color:#222;border:5px ridge #eee;padding:18px;width:min(540px,90vw);font:16px monospace;box-shadow:0 12px 40px #0009}
+#inventory h2{margin:0 0 10px;font:700 22px monospace}#inventory .grid{display:grid;grid-template-columns:repeat(9,1fr);gap:4px}
+#inventory button{background:#8b8b8b;color:white;border:3px inset #ddd;min-height:48px;cursor:pointer;position:relative;font:12px monospace;background-size:cover;image-rendering:pixelated}
+#inventory button:focus-visible,#inventory button.chosen{outline:3px solid #fff;border-color:#eee}#inventory .close{background:#444;margin-top:16px;padding:8px 18px}
+#inventory p{line-height:1.5}#inventory small{display:block;margin:10px 0;color:#333}#hotbar div{width:clamp(26px,4.6vw,40px)}
+.tl,.br,.bl{background:#0d100cce;padding:10px;border:1px solid #e8e1cf33;border-radius:3px;text-shadow:0 1px 2px #000}.bl{max-width:min(680px,85vw)}
 </style>
 
 <div id="hud">
   <div class="tl">
-    <div class="lbl">Health</div><div class="bar"><i id="hp" style="width:100%"></i></div>
+    <div class="lbl">Health <span id="health-value">1000 / 1000</span></div><div class="bar"><i id="hp" style="width:100%"></i></div>
     <div class="lbl">Radio parts</div><div class="big" id="parts">0 / 5</div>
     <div id="obj">Find radio parts in the ruins.</div>
     <div id="stealth" class="lbl"></div>
@@ -65,10 +72,11 @@ canvas{display:block}
     <div class="lbl">Revolver</div><div class="big" id="ammo">6 · 12</div>
     <div class="lbl" id="inv2"></div><div class="lbl" id="inv">Rags 0 · Alcohol 0 · Medkits 1</div>
   </div>
-  <div class="bl">WASD move · mouse look · click shoot · R reload · Shift sprint · C crouch · E loot · G throw brick · V stealth kill · B block/gun · R place · X break · N agent squad · Space jump · hold Tab listen · Q medkit · H heal · F light</div>
+  <div class="bl">WASD move · mouse look · click shoot · R reload · Shift sprint · C crouch · F loot · E inventory · G throw brick · V stealth kill · B block/gun · R place · X break · N agent squad · Space jump · hold Tab listen · Q medkit · H heal · L light</div>
   <div id="compass"></div><div id="listen"></div><div id="bolt"></div><div id="ellie"></div><div id="prompt"></div><div id="cross"></div><div id="hurt"></div><div id="msg"></div><div id="hotbar" hidden></div><div id="bname" hidden></div><div id="shake"></div><div id="squad" hidden></div>
 </div>
 
+<div id="inventory" hidden role="dialog" aria-modal="true" aria-label="Creative inventory"><div class="box"><h2>Creative inventory</h2><p>Choose an item for your hotbar.</p><div class="grid" id="inventory-grid"></div><small>Browser block mode · E / I / Esc close · world paused</small><p id="item-help"></p><button class="close" id="inventory-close">Return to game</button></div></div>
 <div id="menu"><div class="card">
   <div class="lbl">Boston QZ outskirts · 20 years after outbreak</div>
   <h1>Over<span>growth</span></h1>
@@ -124,13 +132,16 @@ T.concrete.repeat.set(1,1);
 const renderer=new THREE.WebGLRenderer({antialias:true});
 renderer.setPixelRatio(Math.min(devicePixelRatio,1.75));renderer.setSize(innerWidth,innerHeight);
 renderer.shadowMap.enabled=true;renderer.shadowMap.type=THREE.PCFSoftShadowMap;
-renderer.outputEncoding=THREE.sRGBEncoding;renderer.toneMapping=THREE.ACESFilmicToneMapping;renderer.toneMappingExposure=1.1;
+renderer.outputEncoding=THREE.sRGBEncoding;renderer.toneMapping=THREE.ACESFilmicToneMapping;renderer.toneMappingExposure=.85;
 document.body.prepend(renderer.domElement);
 const scene=new THREE.Scene();
-const FOG=0x7d8a78;scene.background=new THREE.Color(FOG);scene.fog=new THREE.FogExp2(FOG,.022);
+const FOG=0x202934;scene.background=new THREE.Color(FOG);scene.fog=new THREE.FogExp2(FOG,.022);
+const cloudBank=new THREE.Group();scene.add(cloudBank);
+const cloudMaterial=new THREE.MeshLambertMaterial({color:0x17202c,transparent:true,opacity:.8,depthWrite:false});
+for(let i=0;i<24;i++){const cloud=new THREE.Mesh(new THREE.SphereGeometry(1,10,6),cloudMaterial);cloud.position.set((i%6-2.5)*38,44+(i%3)*5,(Math.floor(i/6)-1.5)*42);cloud.scale.set(35,5,23);cloudBank.add(cloud)}
 const cam=new THREE.PerspectiveCamera(65,innerWidth/innerHeight,.1,300);
-scene.add(new THREE.HemisphereLight(0xcfd9c0,0x2a2a1a,.75));
-const sun=new THREE.DirectionalLight(0xfff1d6,1.1);sun.position.set(40,60,20);sun.castShadow=true;
+scene.add(new THREE.HemisphereLight(0x869cb6,0x181b19,.48));
+const sun=new THREE.DirectionalLight(0xb1c7e0,.5);sun.position.set(40,60,20);sun.castShadow=true;
 sun.shadow.mapSize.set(2048,2048);Object.assign(sun.shadow.camera,{left:-60,right:60,top:60,bottom:-60,far:180});scene.add(sun);
 
 const M=(t,o={})=>new THREE.MeshStandardMaterial(Object.assign({map:t,roughness:.95,metalness:0},o));
@@ -209,7 +220,8 @@ function addLoot(kind){
 for(let i=0;i<5;i++)addLoot('part');for(let i=0;i<10;i++)addLoot('rags');for(let i=0;i<8;i++)addLoot('alcohol');for(let i=0;i<9;i++)addLoot('ammo');for(let i=0;i<12;i++)addLoot('brick');for(let i=0;i<6;i++)addLoot('blade');
 
 /* ---------- player ---------- */
-const P={x:0,z:10,y:0,vy:0,ground:true,yaw:Math.PI,pitch:-.1,hp:100,mag:6,ammo:12,rags:0,alc:0,med:1,parts:0,bricks:1,shivs:1,listen:false,crouch:false,sprint:false,bob:0,hurtT:0,alive:true,won:false};
+const MAX_HEALTH=1000;
+const P={x:0,z:10,y:0,vy:0,ground:true,yaw:Math.PI,pitch:-.1,hp:MAX_HEALTH,mag:6,ammo:12,rags:0,alc:0,med:1,parts:0,bricks:1,shivs:1,listen:false,crouch:false,sprint:false,bob:0,hurtT:0,alive:true,won:false};
 const flash=new THREE.SpotLight(0xfff0c8,0,40,.45,.5,1.4);flash.castShadow=true;scene.add(flash,flash.target);let flashOn=false;
 // held revolver in view
 const gun=new THREE.Group();
@@ -264,7 +276,7 @@ const rainN=2500,rainG=new THREE.BufferGeometry(),rainP=new Float32Array(rainN*6
 for(let i=0;i<rainN;i++){const x=(R()-.5)*80,y=R()*30,z=(R()-.5)*80;rainP.set([x,y,z,x+.05,y-.7,z],i*6)}
 rainG.setAttribute('position',new THREE.BufferAttribute(rainP,3));
 const rain=new THREE.LineSegments(rainG,new THREE.LineBasicMaterial({color:0xa8b4b0,transparent:true,opacity:0}));rain.frustumCulled=false;scene.add(rain);
-let weather=0,weatherT=40,boltT=8;
+let weather=1,weatherT=60,boltT=8;
 
 /* ---------- audio (synth) ---------- */
 let AC;
@@ -293,29 +305,32 @@ function ambience(){const b=AC.createBuffer(1,AC.sampleRate*4,AC.sampleRate),d=b
 /* ---------- input ---------- */
 const keys={};let started=false,msgT=0;
 addEventListener('keydown',e=>{keys[e.code]=true;if(!started||!P.alive)return;
+  if(e.code==='KeyE'||e.code==='KeyI'){e.preventDefault();if(!e.repeat)creativeMenu(!inventoryOpen);return}
+  if(inventoryOpen){e.preventDefault();if(e.code==='Escape')creativeMenu(false);else if(/^Digit[1-9]$/.test(e.code)){BM.pick(+e.code.slice(5)-1);creativeMenu(false)}return}
   if(e.code=='KeyC')P.crouch=!P.crouch;
-  if(e.code=='KeyF'){flashOn=!flashOn}
+  if(e.code=='KeyL'){flashOn=!flashOn}
+  if(e.code=='KeyF')pickup();
   if(e.code=='KeyG')throwBrick();
   if(e.code=='KeyV')takedown();
   if(e.code=='Tab')e.preventDefault();
   if(e.code=='KeyR'){if(BM.on)BM.click(2);else reload()}
   if(e.code=='KeyX'&&BM.on)BM.click(0);
-  if(e.code=='KeyE')pickup();
+
   if(e.code=='KeyQ'){if(P.rags>=1&&P.alc>=1){P.rags--;P.alc--;P.med++;say('Crafted a medkit.');snd('pick')}else say('Need 1 rag and 1 alcohol to craft.')}
   if(e.code=='KeyB')BM.toggle();
   if(e.code=='KeyN')SQ.deploy();
   if(e.code=='KeyY')SQ.approve();
   if(e.code=='Space'){e.preventDefault();if(P.ground)P.vy=6.2}
-  if(BM.on&&/^Digit[1-7]$/.test(e.code))BM.pick(+e.code.slice(5)-1);
-  if(e.code=='KeyH'){if(P.med>0&&P.hp<100){P.med--;P.hp=Math.min(100,P.hp+50);say('Patched up.')}}
+  if(/^Digit[1-9]$/.test(e.code))BM.pick(+e.code.slice(5)-1);
+  if(e.code=='KeyH'){if(P.med>0&&P.hp<MAX_HEALTH){P.med--;P.hp=Math.min(MAX_HEALTH,P.hp+MAX_HEALTH/2);say('Patched up.')}}
 });
 addEventListener('keyup',e=>keys[e.code]=false);
 let drag=false,lx=0,ly=0;
 const look=(dx,dy)=>{P.yaw-=dx*.0025;P.pitch=Math.max(-1.2,Math.min(1.1,P.pitch-dy*.0025))};
-addEventListener('mousemove',e=>{if(document.pointerLockElement)look(e.movementX,e.movementY);else if(drag){look(e.clientX-lx,e.clientY-ly);lx=e.clientX;ly=e.clientY}});
-renderer.domElement.addEventListener('mousedown',e=>{if(!started)return;if(!document.pointerLockElement){try{const p=renderer.domElement.requestPointerLock();p&&p.catch&&p.catch(()=>{})}catch(_){};drag=true;lx=e.clientX;ly=e.clientY}if(BM.on)BM.click(e.button);else shoot()});
+addEventListener('mousemove',e=>{if(inventoryOpen)return;if(document.pointerLockElement)look(e.movementX,e.movementY);else if(drag){look(e.clientX-lx,e.clientY-ly);lx=e.clientX;ly=e.clientY}});
+renderer.domElement.addEventListener('mousedown',e=>{if(!started||inventoryOpen)return;if(!document.pointerLockElement){try{const p=renderer.domElement.requestPointerLock();p&&p.catch&&p.catch(()=>{})}catch(_){};drag=true;lx=e.clientX;ly=e.clientY}if(BM.on&&[0,2].includes(e.button))BM.click(e.button);else if(e.button===0)shoot()});
 renderer.domElement.addEventListener('contextmenu',e=>e.preventDefault());
-addEventListener('wheel',e=>{if(BM.on)BM.pick((BM.sel+(e.deltaY>0?1:6))%7)});
+addEventListener('wheel',e=>{if(!inventoryOpen)BM.pick((BM.sel+(e.deltaY>0?1:8))%9)});
 addEventListener('mouseup',()=>drag=false);
 
 /* ---------- actions ---------- */
@@ -327,7 +342,7 @@ function shoot(){if(!P.alive||P.won||shotCd>0)return;
   if(P.mag<=0){snd('click');say('Empty. Press R.',1.2);return}
   P.mag--;shotCd=.45;snd('shot');muzzle.intensity=6;gun.rotation.x=.35;makeNoise(40);
   ray.setFromCamera({x:0,y:0},cam);const hits=ray.intersectObjects(enemies.filter(e=>!e.dead).map(e=>e.g),true);
-  if(hits.length&&hits[0].distance<60){const e=hits[0].object.userData.e;const head=hits[0].object===e.head;e.hp-=head?3:1;e.state='chase';e.alert=10;e.tx=P.x;e.tz=P.z;
+  if(hits.length&&hits[0].distance<60){const e=hits[0].object.userData.e;if(!e)return;const blocked=ray.intersectObjects([...blocks.values()].map(b=>b.m),false)[0];if(blocked&&blocked.distance<hits[0].distance)return;const head=hits[0].object===e.head;e.hp-=head?3:1;e.state='chase';e.alert=10;e.tx=P.x;e.tz=P.z;
     if(e.hp<=0){e.dead=true;killVisual(e);e.sil.visible=false;say(head?'Headshot.':'Down.',1)}}
 }
 function throwBrick(){if(P.bricks<=0){say('No bricks. Find some in the rubble.',1.5);return}P.bricks--;
@@ -408,7 +423,7 @@ function explode(cx,cy,cz){const R0=3.2;
     else if(d<14){e.state='chase';e.alert=10;e.tx=cx;e.tz=cz}}
   const pd=Math.hypot(P.x-cx,P.y+1-cy,P.z-cz);if(pd<4.5&&!shielded(cx,cy,cz,P.x,P.y+1,P.z)){P.hp-=Math.round(60*(1-pd/4.5));P.hurtT=.8;snd('hurt');P.vy=5;if(P.hp<=0&&P.alive){P.alive=false;end(false)}}
   const fb=new THREE.Mesh(new THREE.SphereGeometry(1,12,8),new THREE.MeshBasicMaterial({color:0xffd27a,transparent:true,opacity:.9,depthWrite:false}));fb.position.set(cx,cy,cz);scene.add(fb);burst.push({m:fb,t:1});
-  debris(new THREE.Vector3(cx,cy,cz),PX.tntSide,14);makeNoise(70,cx,cz);shakeT=.5;$('shake').style.opacity=.6;
+  debris(new THREE.Vector3(cx,cy,cz),PX.tntSide,14);makeNoise(70,cx,cz);shakeT=.5;$('shake').style.opacity=matchMedia('(prefers-reduced-motion: reduce)').matches?0:.12;
   if(OG.audio.ready){sfx('tnt_boom',{x:cx,y:cy,z:cz},1);OG.audio.play('ignite',{pos:{x:cx,y:cy,z:cz},vol:.6})}else snd('pop');
   const sc=new THREE.Mesh(new THREE.CircleGeometry(2.4,20),new THREE.MeshBasicMaterial({map:scorchT,transparent:true,depthWrite:false,opacity:.85}));sc.rotation.x=-Math.PI/2;sc.position.set(cx,.03,cz);scene.add(sc);
   for(let i=0;i<10;i++){const m=new THREE.Sprite(new THREE.SpriteMaterial({map:smokeT,transparent:true,depthWrite:false,opacity:.75,color:i<3?0xffb060:0x777066}));m.position.set(cx+(R()-.5)*1.5,cy+R(),cz+(R()-.5)*1.5);m.scale.setScalar(1.5);scene.add(m);smoke.push({m,v:new THREE.Vector3((R()-.5)*1.2,1.2+R()*1.5,(R()-.5)*1.2),t:2.5+R()*1.5,t0:4})}}
@@ -420,16 +435,18 @@ const sparkG=new THREE.BoxGeometry(.06,.06,.06),sparkM=new THREE.MeshBasicMateri
 let shakeT=0;
 const BM={occlusion:false,on:false,sel:6,inv:[32,64,64,16,16,8,64],seen:false,cd:0,arm:null,held:null,
   toggle(){this.on=!this.on;gun.visible=!this.on;this.arm.visible=this.on;$('hotbar').hidden=$('bname').hidden=!this.on;
-    if(this.on&&!this.seen){this.seen=true;say('Block mode · R place · X break · 1-7 pick · hit TNT to light it · B for revolver',5);ellieSay('Is that... a grass block? Where did you even get that?',3)}
-    this.pick(this.sel)},
-  drawBar(){[...$('hotbar').children].forEach((d,j)=>{d.querySelector('b').textContent=this.inv[j];d.style.opacity=this.inv[j]?1:.45})},
-  pick(i){this.sel=i;this.drawBar();[...$('hotbar').children].forEach((d,j)=>d.className=j==i?'on':'');$('bname').textContent=BT[i].n;$('bname').style.opacity=1;this.nameT=2;
-    this.held.material=BT[i].m},
+    if(this.on&&!this.seen){this.seen=true;say('Block mode · R place · X break · 1–9 select · 8 flint and steel to light TNT · B for revolver',5);ellieSay('Is that... a grass block? Where did you even get that?',3)}
+    this.pick(this.on?(this.sel<8?this.sel:6):8)},
+  drawBar(){[...$('hotbar').children].forEach((d,j)=>{d.querySelector('b').textContent=j<7?this.inv[j]:j===8?P.mag:'1';d.style.opacity=j<7&&!this.inv[j]?.45:1})},
+  pick(i){if(i<0||i>8)return;this.sel=i;this.on=i!==8;gun.visible=!this.on;this.arm.visible=this.on;$('hotbar').hidden=false;$('bname').hidden=false;this.drawBar();[...$('hotbar').children].forEach((d,j)=>d.className=j==i?'on':'');$('bname').textContent=i===7?'Flint and steel':i===8?'Revolver':BT[i].n;$('bname').style.opacity=1;this.nameT=2;
+    this.held.visible=i<7;if(i<7)this.held.material=BT[i].m},
   target(){ray.setFromCamera({x:0,y:0},cam);ray.far=7;const list=[...blocks.values()].map(b=>b.m);list.push(ground);
     const h=ray.intersectObjects(list,false)[0];ray.far=Infinity;return h},
   click(btn){if(!P.alive||this.cd>0)return;this.cd=.18;this.arm.rotation.x=-.6;const h=this.target();if(!h)return;
     const b=h.object.userData.block;
-    if(btn===0){if(!b)return;if(BT[b.t].tnt){if(!b.lit){b.lit=true;fuses.push({b,t:2.2});sfx('tnt_fuse',{x:b.x,y:b.y,z:b.z},.8);say('Fuse lit. Run.',1.2)}return}
+    if(btn===2&&this.sel===7){if(b&&BT[b.t].tnt&&!b.lit){b.lit=true;fuses.push({b,t:2.2});say('TNT lit. Move back.',2);sfx('tnt_fuse',{x:b.x,y:b.y,z:b.z},.8)}else say('Aim at placed TNT, then press R.',2);return}
+    if(this.sel===8)return;
+    if(btn===0){if(!b)return;if(b.lit){say('Primed TNT cannot be recovered.',1.2);return}
       dropBlock(b);this.inv[b.t]++;this.drawBar();if(OG.audio.ready)sfx('blk_break_'+MAT[b.t],{x:b.x,y:b.y,z:b.z});else snd('clang');makeNoise(6,b.x,b.z);return}
     if(btn===2){let x,y,z;if(b){const n=h.face.normal;x=b.x+n.x;y=b.y+n.y;z=b.z+n.z}else{x=Math.floor(h.point.x);y=0;z=Math.floor(h.point.z)}
       // never place a block inside the player
@@ -451,7 +468,14 @@ BM.white=new THREE.MeshBasicMaterial({color:0xffffff});
   const cuff=new THREE.Mesh(new THREE.BoxGeometry(.17,.17,.22),lam(sleeve));cuff.position.z=.15;arm.add(fore,cuff);
   const held=new THREE.Mesh(cubeG,BT[0].m);held.scale.setScalar(.22);held.position.set(-.05,.14,-.42);held.rotation.set(.2,.7,0);arm.add(held);
   arm.position.set(.38,-.42,-.55);arm.rotation.set(0,-.25,0);arm.visible=false;cam.add(arm);BM.arm=arm;BM.held=held;
-  $('hotbar').innerHTML=BT.map((b,i)=>`<div style="background-image:url(${b.icon.userData.url})"><b>${i+1}</b></div>`).join('')}
+  $('hotbar').innerHTML=BT.map((b,i)=>`<div style="background-image:url(${b.icon.userData.url})"><b>${i+1}</b></div>`).join('')+'<div title="Flint and steel">F&S<b>8</b></div><div title="Revolver">Gun<b>9</b></div>'}
+let inventoryOpen=false;
+function creativeMenu(open){inventoryOpen=open;$('inventory').hidden=!open;for(const k of Object.keys(keys))keys[k]=false;drag=false;
+ if(open){document.exitPointerLock?.();$('inventory-grid').innerHTML=Array.from({length:9},(_,i)=>`<button data-slot="${i}" class="${BM.sel===i?'chosen':''}" style="${i<7?'background-image:url('+BT[i].icon.userData.url+')':''}" aria-label="${i<7?BT[i].n:i===7?'Flint and steel':'Revolver'}">${i+1}${i>=7?'<br>'+(i===7?'Flint':'Gun'):''}</button>`).join('');
+ $('inventory-grid').querySelectorAll('button').forEach(b=>b.onclick=()=>{BM.pick(Number(b.dataset.slot));creativeMenu(false)});$('item-help').textContent='1–7 blocks: R place, X break. 8 flint and steel: R ignites TNT. 9 revolver: click shoots, R reloads.';$('inventory-grid').querySelector('button').focus();}
+}
+$('inventory-close').onclick=()=>creativeMenu(false);
+addEventListener('blur',()=>{for(const k of Object.keys(keys))keys[k]=false;drag=false});
 // a small starter build near spawn so the mash-up reads at first glance
 [[3,0,6,0],[4,0,6,0],[5,0,6,1],[5,1,6,1],[5,2,6,5],[3,0,7,6],[-4,0,5,3],[-4,1,5,3],[-4,2,5,3],[-5,0,5,2],[-3,0,5,2],[-4,3,5,5]].forEach(([x,y,z,t])=>putBlock(x,y,z,t));
 
@@ -550,6 +574,7 @@ function animInfected(e,dt,d){if(!e.hf)return;const p=e.g.position,lx=e.lx??p.x,
   if(e.stun>0)e.hf.play('stagger',.2);else if(v>2.5)e.hf.play('run',.25,Math.min(1.4,v/4.5));else if(v>.2)e.hf.play('walk',.3,Math.max(.6,v*1.1));else e.hf.play('idle',.4)}
 // swap placeholder bodies, cars and roads for the Higgsfield assets once they load
 function applyAssets(){
+  const pistol=HF.prop('pistol',.42);if(pistol){barrel.visible=cyl.visible=grip.visible=false;pistol.rotation.y=Math.PI;pistol.position.set(0,-.12,-.16);gun.add(pistol)}
   enemies.forEach(e=>{e.g.userData.e=e;e.sil.userData.keep=true;e.hf=HF.attach(e.g,e.type,e.type=='bloater'?{scale:1.3,tint:0xd8b080}:{});if(e.dead&&e.hf)e.hf.play('death',0)});
   ellie.hf=HF.attach(ellie.g,'ellie');
   carGroups.forEach(g=>{const car=HF.prop('sedan',4.4);if(!car)return;g.traverse(o=>{if(o.isMesh)o.visible=false});const h=car.userData.half;if(h.z>h.x)car.rotation.y=Math.PI/2;g.add(car)});
@@ -602,7 +627,7 @@ function update(dt){
     if(e.state=='chase')danger=Math.max(danger,1-d/30);e.sil.visible=P.listen&&d<40;
     e.atk-=dt;if(d<1.3&&P.alive&&!P.won&&e.atk<=0){e.atk=1;const dmg=({runner:18,clicker:45,bloater:60})[e.type];P.hp-=dmg;P.hurtT=.6;snd('hurt');if(e.hf)e.hf.play('attack',.1);if(P.hp<=0){P.alive=false;end(false)}}
   }
-  P.hurtT-=dt;$('hurt').style.opacity=Math.max(0,P.hurtT)+(P.hp<35?.35:0);
+  P.hurtT-=dt;$('hurt').style.opacity=Math.max(0,P.hurtT)+(P.hp<MAX_HEALTH*.35?.35:0);
 
   // world fx
   const a=spG.attributes.position;for(let i=0;i<spN;i++){a.array[i*3+1]-=dt*.15;a.array[i*3]+=Math.sin(clock.elapsedTime*.3+i)*dt*.1;
@@ -629,12 +654,13 @@ function update(dt){
   // horror mix: listener, ambience and score follow the fight
   if(OG.audio.ready){const fw=new THREE.Vector3(0,0,-1).applyQuaternion(cam.quaternion);OG.audio.setListener({x:P.x,y:1.6,z:P.z},fw);
     let near=99;for(const e of enemies)if(!e.dead)near=Math.min(near,e.g.position.distanceTo(new THREE.Vector3(P.x,0,P.z)));
-    OG.audio.update(dt,{interior:false,rain:Math.min(1,rain.material.opacity/.45),tension:Math.max(0,1-near/28),combat:danger,dark:.4,hp:Math.max(0,P.hp)/100,near:{trees:true},pos:{x:P.x,z:P.z}})}
+    OG.audio.update(dt,{interior:false,rain:Math.min(1,rain.material.opacity/.45),tension:Math.max(0,1-near/28),combat:danger,dark:.8,hp:Math.max(0,P.hp)/MAX_HEALTH,near:{trees:true},pos:{x:P.x,z:P.z}})}
+  cloudBank.position.set(P.x+Math.sin(clock.elapsedTime*.025)*8,0,P.z);
   // weather: rain fronts and lightning
   weatherT-=dt;if(weatherT<=0){weatherT=45+R()*40;weather=weather?0:1;if(weather)ellieSay('Rain. Great. Wet mushrooms.',2.5)}
   rain.material.opacity+=((weather?.45:0)-rain.material.opacity)*dt*.5;rain.position.set(P.x,0,P.z);
   if(rain.material.opacity>.02){const ra=rainG.attributes.position.array;for(let i=0;i<rainN;i++){let y=ra[i*6+1]-dt*28;if(y<0)y+=30;ra[i*6+1]=y;ra[i*6+4]=y-.7}rainG.attributes.position.needsUpdate=true;
-    boltT-=dt;if(boltT<=0){boltT=6+R()*14;$('bolt').style.transition='none';$('bolt').style.opacity=.55;setTimeout(()=>{$('bolt').style.transition='opacity 1.2s';$('bolt').style.opacity=0},90);setTimeout(()=>snd('thunder'),600+R()*1200)}}
+    boltT-=dt;if(boltT<=0){boltT=6+R()*14;$('bolt').style.transition='none';$('bolt').style.opacity=matchMedia('(prefers-reduced-motion: reduce)').matches?0:.10;setTimeout(()=>{$('bolt').style.transition='opacity 1.2s';$('bolt').style.opacity=0},90);setTimeout(()=>snd('thunder'),600+R()*1200)}}
   scene.fog.density+=((weather?.034:.022)-scene.fog.density)*dt*.3;
   const lv=P.listen?1:0;$('listen').style.opacity=lv;renderer.domElement.style.filter=lv?'grayscale(.85) contrast(1.1)':'';
   // compass
@@ -643,12 +669,12 @@ function update(dt){
     if(P.parts>=5)add(tower.position.x,tower.position.z,'tw','▲ TOWER');else{let n=null,nd=1e9;for(const l of loot)if(l.kind=='part'){const d=Math.hypot(l.m.position.x-P.x,l.m.position.z-P.z);if(d<nd){nd=d;n=l}}if(n)add(n.m.position.x,n.m.position.z,'pt','◆ '+Math.round(nd)+'m')}
     $('compass').innerHTML=h}
   // context prompt
-  {let t='';for(const l of loot)if(Math.hypot(l.m.position.x-P.x,l.m.position.z-P.z)<2.6){t='E · pick up '+({part:'radio part',rags:'rags',alcohol:'alcohol',ammo:'ammo',brick:'brick',blade:'blade'})[l.kind];break}
+  {let t='';for(const l of loot)if(Math.hypot(l.m.position.x-P.x,l.m.position.z-P.z)<2.6){t='F · pick up '+({part:'radio part',rags:'rags',alcohol:'alcohol',ammo:'ammo',brick:'brick',blade:'blade'})[l.kind];break}
     if(!t)for(const e of enemies)if(!e.dead&&e.type!='bloater'&&Math.hypot(e.g.position.x-P.x,e.g.position.z-P.z)<1.9&&(e.state!='chase'||e.stun>0)){t='V · '+(e.type=='clicker'?'shiv':'strangle');break}
     $('prompt').textContent=t}
   // HUD
-  $('hp').style.width=Math.max(0,P.hp)+'%';$('hp').style.background=P.hp<35?'var(--blood)':'var(--moss)';
-  $('parts').textContent=P.parts+' / 5';$('ammo').textContent=P.mag+' · '+P.ammo;
+  $('health-value').textContent=Math.ceil(Math.max(0,P.hp))+' / '+MAX_HEALTH; $('hp').style.width=(Math.max(0,P.hp)/MAX_HEALTH*100)+'%';$('hp').style.background=P.hp<MAX_HEALTH*.35?'var(--blood)':'var(--moss)';
+  $('parts').textContent=P.parts+' / 5';$('ammo').textContent=P.mag+' · '+P.ammo;BM.drawBar();
   $('inv2').textContent=`Bricks ${P.bricks} · Shivs ${P.shivs}`;$('inv').textContent=`Rags ${P.rags} · Alcohol ${P.alc} · Medkits ${P.med}`;
   $('obj').textContent=P.parts<5?'Find radio parts in the ruins.':'Reach the signal tower, due north.';
   $('stealth').textContent=(P.crouch?'Crouched · quiet':P.sprint?'Sprinting · loud':'')+(danger>0?'  ·  Hunted':'');
@@ -657,7 +683,7 @@ function end(win){if(!win&&OG.audio.ready)OG.audio.stinger('stinger_death',.9);d
   const m=$('menu');m.hidden=false;m.querySelector('h1').innerHTML=win?'Signal <span>sent</span>':'You were <span>turned</span>';
   m.querySelectorAll('p')[0].textContent=win?'The Fireflies heard you. A light answers from across the bay.':'The spores take everyone eventually. Not today, though. Try again.';
   m.querySelectorAll('p')[1].textContent='';$('go').textContent='Play again';$('go').onclick=()=>location.reload();started=false}
-function frame(){const dt=Math.min(clock.getDelta(),.05);if(started)update(dt);else{P.yaw+=dt*.05;cam.position.set(P.x,1.65,P.z);cam.rotation.set(P.pitch,P.yaw,0,'YXZ')}
+function frame(){const dt=Math.min(clock.getDelta(),.05);if(started&&!inventoryOpen)update(dt);else if(!started){P.yaw+=dt*.05;cam.position.set(P.x,1.65,P.z);cam.rotation.set(P.pitch,P.yaw,0,'YXZ')}
   renderer.render(scene,cam);requestAnimationFrame(frame)}
 frame();
 // load the Higgsfield assets and synthesise the horror sound set before the player enters

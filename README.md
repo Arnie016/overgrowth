@@ -53,3 +53,9 @@ Inspired by AgentCraft (Claude agents working inside Minecraft), with the arrang
 - [`docs/`](docs/) holds a field note in the [universal-modder](https://github.com/rehan-remade/universal-modder) format. It covers the route, engine facts, verification and gotchas, so the next agent can repeat it.
 
 Built with Claude Code.
+
+## Storm inventory update — 5 October 2026
+
+E/I opens a keyboard-accessible creative-style inventory; Esc closes. 1–7 selects blocks, 8 selects flint and steel, 9 selects the gun. R places a selected block or ignites aimed TNT with flint and steel; X recovers unlit blocks; gun mode uses left click to shoot and R reload. F loots, L toggles the flashlight. Inventory pauses the world and clears held controls. Health is 1,000; medkits restore 500. Storm lighting, cloud meshes, rain, thunder and reduced-motion flash guards are enabled. Existing Higgsfield GLBs now load using their real filenames on Pages; the pistol asset replaces the placeholder.
+
+This public browser build implements voxel mechanics in JavaScript. It is not the separate native Java Minecraft integration or the newer Wren/save/checkpoint build. No licensed Minecraft runtime is bundled. No new paid assets were generated. Human play quality and broad device performance remain unverified.
