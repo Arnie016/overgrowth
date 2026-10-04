@@ -65,7 +65,7 @@ canvas{display:block}
     <div class="lbl">Revolver</div><div class="big" id="ammo">6 · 12</div>
     <div class="lbl" id="inv2"></div><div class="lbl" id="inv">Rags 0 · Alcohol 0 · Medkits 1</div>
   </div>
-  <div class="bl">WASD move · mouse look · click shoot · R reload · Shift sprint · C crouch · E loot · G throw brick · V stealth kill · B block mode · N agent squad · Space jump · hold Tab listen · Q medkit · H heal · F light</div>
+  <div class="bl">WASD move · mouse look · click shoot · R reload · Shift sprint · C crouch · E loot · G throw brick · V stealth kill · B block/gun · R place · X break · N agent squad · Space jump · hold Tab listen · Q medkit · H heal · F light</div>
   <div id="compass"></div><div id="listen"></div><div id="bolt"></div><div id="ellie"></div><div id="prompt"></div><div id="cross"></div><div id="hurt"></div><div id="msg"></div><div id="hotbar" hidden></div><div id="bname" hidden></div><div id="shake"></div><div id="squad" hidden></div>
 </div>
 
@@ -298,7 +298,8 @@ addEventListener('keydown',e=>{keys[e.code]=true;if(!started||!P.alive)return;
   if(e.code=='KeyG')throwBrick();
   if(e.code=='KeyV')takedown();
   if(e.code=='Tab')e.preventDefault();
-  if(e.code=='KeyR')reload();
+  if(e.code=='KeyR'){if(BM.on)BM.click(2);else reload()}
+  if(e.code=='KeyX'&&BM.on)BM.click(0);
   if(e.code=='KeyE')pickup();
   if(e.code=='KeyQ'){if(P.rags>=1&&P.alc>=1){P.rags--;P.alc--;P.med++;say('Crafted a medkit.');snd('pick')}else say('Need 1 rag and 1 alcohol to craft.')}
   if(e.code=='KeyB')BM.toggle();
@@ -417,22 +418,23 @@ const scorchT=(()=>{const c=document.createElement('canvas');c.width=c.height=12
   for(let i=0;i<60;i++){g.fillStyle='#000';g.globalAlpha=.4*R();g.fillRect(16+R()*96|0,16+R()*96|0,4,4)}return new THREE.CanvasTexture(c)})();
 const sparkG=new THREE.BoxGeometry(.06,.06,.06),sparkM=new THREE.MeshBasicMaterial({color:0xffd060});
 let shakeT=0;
-const BM={occlusion:false,on:false,sel:0,seen:false,cd:0,arm:null,held:null,
+const BM={occlusion:false,on:false,sel:6,inv:[32,64,64,16,16,8,64],seen:false,cd:0,arm:null,held:null,
   toggle(){this.on=!this.on;gun.visible=!this.on;this.arm.visible=this.on;$('hotbar').hidden=$('bname').hidden=!this.on;
-    if(this.on&&!this.seen){this.seen=true;say('Block mode. 1-7 or wheel picks · click mine · right-click place · hit TNT to light it',5);ellieSay('Is that... a grass block? Where did you even get that?',3)}
+    if(this.on&&!this.seen){this.seen=true;say('Block mode · R place · X break · 1-7 pick · hit TNT to light it · B for revolver',5);ellieSay('Is that... a grass block? Where did you even get that?',3)}
     this.pick(this.sel)},
-  pick(i){this.sel=i;[...$('hotbar').children].forEach((d,j)=>d.className=j==i?'on':'');$('bname').textContent=BT[i].n;$('bname').style.opacity=1;this.nameT=2;
+  drawBar(){[...$('hotbar').children].forEach((d,j)=>{d.querySelector('b').textContent=this.inv[j];d.style.opacity=this.inv[j]?1:.45})},
+  pick(i){this.sel=i;this.drawBar();[...$('hotbar').children].forEach((d,j)=>d.className=j==i?'on':'');$('bname').textContent=BT[i].n;$('bname').style.opacity=1;this.nameT=2;
     this.held.material=BT[i].m},
   target(){ray.setFromCamera({x:0,y:0},cam);ray.far=7;const list=[...blocks.values()].map(b=>b.m);list.push(ground);
     const h=ray.intersectObjects(list,false)[0];ray.far=Infinity;return h},
   click(btn){if(!P.alive||this.cd>0)return;this.cd=.18;this.arm.rotation.x=-.6;const h=this.target();if(!h)return;
     const b=h.object.userData.block;
     if(btn===0){if(!b)return;if(BT[b.t].tnt){if(!b.lit){b.lit=true;fuses.push({b,t:2.2});sfx('tnt_fuse',{x:b.x,y:b.y,z:b.z},.8);say('Fuse lit. Run.',1.2)}return}
-      dropBlock(b);if(OG.audio.ready)sfx('blk_break_'+MAT[b.t],{x:b.x,y:b.y,z:b.z});else snd('clang');makeNoise(6,b.x,b.z);return}
+      dropBlock(b);this.inv[b.t]++;this.drawBar();if(OG.audio.ready)sfx('blk_break_'+MAT[b.t],{x:b.x,y:b.y,z:b.z});else snd('clang');makeNoise(6,b.x,b.z);return}
     if(btn===2){let x,y,z;if(b){const n=h.face.normal;x=b.x+n.x;y=b.y+n.y;z=b.z+n.z}else{x=Math.floor(h.point.x);y=0;z=Math.floor(h.point.z)}
       // never place a block inside the player
       if(x+1>P.x-.45&&x<P.x+.45&&z+1>P.z-.45&&z<P.z+.45&&y+1>P.y&&y<P.y+1.8)return;
-      {const nb=putBlock(x,y,z,this.sel);if(nb){nb.m.scale.setScalar(.6);nb.pop=.15;if(OG.audio.ready)sfx('blk_place',{x,y,z},.5);else snd('pick')}}}},
+      {if(this.inv[this.sel]<=0){say('Out of '+BT[this.sel].n+'. Mine some back with X.',1.5);return}const nb=putBlock(x,y,z,this.sel);if(nb){this.inv[this.sel]--;this.drawBar();nb.m.scale.setScalar(.6);nb.pop=.15;if(OG.audio.ready)sfx('blk_place',{x,y,z},.5);else snd('pick')}}}},
   update(dt){this.cd-=dt;this.arm.rotation.x*=.8;this.arm.position.y=-.42+Math.sin(P.bob*.5)*.02;
     if(this.nameT>0){this.nameT-=dt;if(this.nameT<=0)$('bname').style.opacity=0}
     for(let i=fuses.length-1;i>=0;i--){const f=fuses[i];f.t-=dt;f.b.m.material=(Math.floor(f.t*8)%2)?BT[6].m:this.white;f.b.m.scale.setScalar(1+Math.max(0,.5-f.t)*.3);
@@ -665,7 +667,7 @@ Promise.all([HF.load(renderer,v=>{pA=v;prog()}).catch(()=>{}),OG.audio.init(v=>{
   if(HF.ready)applyAssets();go.disabled=false;go.textContent='Enter the city'});
 $('go').onclick=()=>{$('menu').hidden=true;started=true;
   if(OG.audio.ready){OG.audio.resume();OG.audio.startWorld()}else{try{AC=new (window.AudioContext||window.webkitAudioContext)();ambience()}catch(_){}}
-  try{const p=renderer.domElement.requestPointerLock();p&&p.catch&&p.catch(()=>{})}catch(_){}say('Find the five radio parts. Stay quiet.',3.5);setTimeout(()=>ellieSay('Stick close. I got bricks if you need them.'),4000)};
+  try{const p=renderer.domElement.requestPointerLock();p&&p.catch&&p.catch(()=>{})}catch(_){}if(!BM.on)BM.toggle();say('Find the five radio parts. You start with 64 TNT.',3.5);setTimeout(()=>ellieSay('Stick close. I got bricks if you need them.'),4000)};
 addEventListener('resize',()=>{cam.aspect=innerWidth/innerHeight;cam.updateProjectionMatrix();renderer.setSize(innerWidth,innerHeight)});
 })();
 </script>

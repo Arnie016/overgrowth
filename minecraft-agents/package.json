@@ -1,0 +1,13 @@
+{
+  "name": "overgrowth-minecraft-agents",
+  "version": "0.1.0",
+  "private": true,
+  "description": "AgentCraft-style squad of bots that run TNT tests inside real Minecraft Java",
+  "type": "module",
+  "scripts": { "start": "node squad.js" },
+  "dependencies": {
+    "mineflayer": "^4.23.0",
+    "mineflayer-pathfinder": "^2.4.5",
+    "vec3": "^0.1.10"
+  }
+}
