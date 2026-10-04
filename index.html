@@ -384,7 +384,9 @@ const BT=[
   {n:'Glowstone',m:lam(PX.glow,{emissive:0xffcc55,emissiveMap:PX.glow}),icon:PX.glow,light:true},
   {n:'TNT',m:[lam(PX.tntSide),lam(PX.tntSide),lam(PX.tntTop),lam(PX.tntTop),lam(PX.tntSide),lam(PX.tntSide)],icon:PX.tntSide,tnt:true},
 ];
+const MAT=['dirt','stone','wood','wood','glass','glass','dirt'];
 const cubeG=new THREE.BoxGeometry(1,1,1);
+const sfx=(n,pos,vol=.7)=>{if(OG.audio.ready&&OG.audio.has?.(n)!==false)OG.audio.play(n,{pos,vol})};
 const key=(x,y,z)=>x+','+y+','+z;
 function putBlock(x,y,z,t){const k=key(x,y,z);if(blocks.has(k)||y<0||y>40)return null;const T0=BT[t];const m=new THREE.Mesh(cubeG,T0.m);m.position.set(x+.5,y+.5,z+.5);m.castShadow=m.receiveShadow=true;
   const b={x,y,z,t,m};m.userData.block=b;if(T0.light){const l=new THREE.PointLight(0xffcc66,1.2,9,2);m.add(l)}scene.add(m);blocks.set(k,b);return b}
@@ -406,7 +408,14 @@ function explode(cx,cy,cz){const R0=3.2;
   const pd=Math.hypot(P.x-cx,P.y+1-cy,P.z-cz);if(pd<4.5&&!shielded(cx,cy,cz,P.x,P.y+1,P.z)){P.hp-=Math.round(60*(1-pd/4.5));P.hurtT=.8;snd('hurt');P.vy=5;if(P.hp<=0&&P.alive){P.alive=false;end(false)}}
   const fb=new THREE.Mesh(new THREE.SphereGeometry(1,12,8),new THREE.MeshBasicMaterial({color:0xffd27a,transparent:true,opacity:.9,depthWrite:false}));fb.position.set(cx,cy,cz);scene.add(fb);burst.push({m:fb,t:1});
   debris(new THREE.Vector3(cx,cy,cz),PX.tntSide,14);makeNoise(70,cx,cz);shakeT=.5;$('shake').style.opacity=.6;
-  if(OG.audio.ready){OG.audio.play('ignite',{pos:{x:cx,y:cy,z:cz},vol:1});OG.audio.thunder(0,.8)}else snd('pop')}
+  if(OG.audio.ready){sfx('tnt_boom',{x:cx,y:cy,z:cz},1);OG.audio.play('ignite',{pos:{x:cx,y:cy,z:cz},vol:.6})}else snd('pop');
+  const sc=new THREE.Mesh(new THREE.CircleGeometry(2.4,20),new THREE.MeshBasicMaterial({map:scorchT,transparent:true,depthWrite:false,opacity:.85}));sc.rotation.x=-Math.PI/2;sc.position.set(cx,.03,cz);scene.add(sc);
+  for(let i=0;i<10;i++){const m=new THREE.Sprite(new THREE.SpriteMaterial({map:smokeT,transparent:true,depthWrite:false,opacity:.75,color:i<3?0xffb060:0x777066}));m.position.set(cx+(R()-.5)*1.5,cy+R(),cz+(R()-.5)*1.5);m.scale.setScalar(1.5);scene.add(m);smoke.push({m,v:new THREE.Vector3((R()-.5)*1.2,1.2+R()*1.5,(R()-.5)*1.2),t:2.5+R()*1.5,t0:4})}}
+const smoke=[];
+const smokeT=(()=>{const c=document.createElement('canvas');c.width=c.height=64;const g=c.getContext('2d');const r=g.createRadialGradient(32,32,2,32,32,30);r.addColorStop(0,'#fffffff0');r.addColorStop(1,'#ffffff00');g.fillStyle=r;g.fillRect(0,0,64,64);return new THREE.CanvasTexture(c)})();
+const scorchT=(()=>{const c=document.createElement('canvas');c.width=c.height=128;const g=c.getContext('2d');const r=g.createRadialGradient(64,64,4,64,64,62);r.addColorStop(0,'#0a0806f0');r.addColorStop(.6,'#1a120ca0');r.addColorStop(1,'#1a120c00');g.fillStyle=r;g.fillRect(0,0,128,128);
+  for(let i=0;i<60;i++){g.fillStyle='#000';g.globalAlpha=.4*R();g.fillRect(16+R()*96|0,16+R()*96|0,4,4)}return new THREE.CanvasTexture(c)})();
+const sparkG=new THREE.BoxGeometry(.06,.06,.06),sparkM=new THREE.MeshBasicMaterial({color:0xffd060});
 let shakeT=0;
 const BM={occlusion:false,on:false,sel:0,seen:false,cd:0,arm:null,held:null,
   toggle(){this.on=!this.on;gun.visible=!this.on;this.arm.visible=this.on;$('hotbar').hidden=$('bname').hidden=!this.on;
@@ -418,16 +427,19 @@ const BM={occlusion:false,on:false,sel:0,seen:false,cd:0,arm:null,held:null,
     const h=ray.intersectObjects(list,false)[0];ray.far=Infinity;return h},
   click(btn){if(!P.alive||this.cd>0)return;this.cd=.18;this.arm.rotation.x=-.6;const h=this.target();if(!h)return;
     const b=h.object.userData.block;
-    if(btn===0){if(!b)return;if(BT[b.t].tnt){if(!b.lit){b.lit=true;fuses.push({b,t:2.2});snd('click');say('Fuse lit. Run.',1.2)}return}
-      dropBlock(b);if(OG.audio.ready)OG.audio.play('step_concrete',{pos:{x:b.x,y:b.y,z:b.z},vol:.6});else snd('clang');makeNoise(6,b.x,b.z);return}
+    if(btn===0){if(!b)return;if(BT[b.t].tnt){if(!b.lit){b.lit=true;fuses.push({b,t:2.2});sfx('tnt_fuse',{x:b.x,y:b.y,z:b.z},.8);say('Fuse lit. Run.',1.2)}return}
+      dropBlock(b);if(OG.audio.ready)sfx('blk_break_'+MAT[b.t],{x:b.x,y:b.y,z:b.z});else snd('clang');makeNoise(6,b.x,b.z);return}
     if(btn===2){let x,y,z;if(b){const n=h.face.normal;x=b.x+n.x;y=b.y+n.y;z=b.z+n.z}else{x=Math.floor(h.point.x);y=0;z=Math.floor(h.point.z)}
       // never place a block inside the player
       if(x+1>P.x-.45&&x<P.x+.45&&z+1>P.z-.45&&z<P.z+.45&&y+1>P.y&&y<P.y+1.8)return;
-      if(putBlock(x,y,z,this.sel)){if(OG.audio.ready)OG.audio.play('pick',{vol:.4});else snd('pick')}}},
+      {const nb=putBlock(x,y,z,this.sel);if(nb){nb.m.scale.setScalar(.6);nb.pop=.15;if(OG.audio.ready)sfx('blk_place',{x,y,z},.5);else snd('pick')}}}},
   update(dt){this.cd-=dt;this.arm.rotation.x*=.8;this.arm.position.y=-.42+Math.sin(P.bob*.5)*.02;
     if(this.nameT>0){this.nameT-=dt;if(this.nameT<=0)$('bname').style.opacity=0}
     for(let i=fuses.length-1;i>=0;i--){const f=fuses[i];f.t-=dt;f.b.m.material=(Math.floor(f.t*8)%2)?BT[6].m:this.white;f.b.m.scale.setScalar(1+Math.max(0,.5-f.t)*.3);
       if(f.t<=0){fuses.splice(i,1);if(blocks.has(key(f.b.x,f.b.y,f.b.z))){dropBlock(f.b,false);explode(f.b.x+.5,f.b.y+.5,f.b.z+.5)}}}
+    for(const f of fuses)if(R()<.5){const m=new THREE.Mesh(sparkG,sparkM);m.position.set(f.b.x+.5,f.b.y+1.02,f.b.z+.5);scene.add(m);bits.push({m,v:new THREE.Vector3((R()-.5)*2,2+R()*2,(R()-.5)*2),t:.35})}
+    for(const b of blocks.values())if(b.pop>0){b.pop-=dt;b.m.scale.setScalar(1-Math.max(0,b.pop)/.15*.4)}
+    for(let i=smoke.length-1;i>=0;i--){const q=smoke[i];q.t-=dt;q.m.position.addScaledVector(q.v,dt);q.v.multiplyScalar(.985);q.m.scale.setScalar(1.5+(q.t0-q.t)*1.6);q.m.material.opacity=Math.max(0,q.t/q.t0)*.7;if(q.t<=0){scene.remove(q.m);smoke.splice(i,1)}}
     for(let i=bits.length-1;i>=0;i--){const q=bits[i];q.t-=dt;q.v.y-=14*dt;q.m.position.addScaledVector(q.v,dt);if(q.m.position.y<.09){q.m.position.y=.09;q.v.multiplyScalar(.5);q.v.y*=-.3}
       q.m.rotation.x+=dt*4;if(q.t<=0){scene.remove(q.m);bits.splice(i,1)}}
     if(shakeT>0){shakeT-=dt;cam.position.x+=(R()-.5)*shakeT*.6;cam.position.y+=(R()-.5)*shakeT*.6;if(shakeT<=0)$('shake').style.opacity=0}}};
@@ -461,7 +473,7 @@ function drawBoard(a){const g=a.bd.c.getContext('2d');g.fillStyle='#2d3a2c';g.fi
   g.font='600 15px monospace';g.fillStyle=a.color;g.fillText('● '+a.name+' · '+a.test.title,16,30);g.font='13px monospace';
   a.lines.slice(-8).forEach((l,i)=>{g.fillStyle=l[0]=='✓'?'#9be36a':l[0]=='✗'?'#ff8a6a':l[0]=='?'?'#8ac8ff':'#e6e2d2';g.fillText(l.slice(0,38),16,54+i*15)});a.bd.t.needsUpdate=true}
 const blockAt=(x,y,z)=>blocks.get(key(x,y,z));
-function lightAt(x,y,z,t=2.2){const b=blockAt(x,y,z);if(b&&!b.lit){b.lit=true;fuses.push({b,t})}}
+function lightAt(x,y,z,t=2.2){const b=blockAt(x,y,z);if(b&&!b.lit){b.lit=true;fuses.push({b,t});sfx('tnt_fuse',{x,y,z},.7)}}
 // each test is a generator: yield actions, return true/false. site=[x,z] is its own patch of ground.
 const TESTS=[
   {title:'chain reaction',site:[16,-6],*run(a,[x,z]){
@@ -501,7 +513,7 @@ const SQ={on:false,agents:[],pending:null,
   deploy(){if(this.on){$('squad').hidden=!$('squad').hidden;return}this.on=true;$('squad').hidden=false;if(!BM.on)BM.toggle();
     TESTS.forEach((test,i)=>{const [name,color]=NAMES[i];const g=villager(color);const ang=i/TESTS.length*6.28;g.position.set(P.x+Math.cos(ang)*3,0,P.z+Math.sin(ang)*3);scene.add(g);
       const bd=board();g.add(bd.sp);const a={name,color,test,g,bd,lines:[],act:null,gen:null,status:'run',runs:0,stuckT:0,
-        log(t){this.lines.push(t);drawBoard(this)}};a.gen=test.run(a,test.site);this.agents.push(a);a.log('assigned: '+test.title)});
+        log(t){this.lines.push(t);drawBoard(this);if(/^[✓✗?]/.test(t))sfx('villager',{x:this.g.position.x,y:1.7,z:this.g.position.z},.8)}};a.gen=test.run(a,test.site);this.agents.push(a);a.log('assigned: '+test.title)});
     say('Agent squad deployed. 5 agents running TNT tests.',3);ellieSay('Who are these guys? Why are they carrying dynamite?',3)},
   approve(){const a=this.pending;if(!a)return;this.pending=null;a.test.apply();a.log('✓ patch applied. re-running');a.status='run';a.runs++;a.gen=a.test.run(a,a.test.site);a.act=null;
     say(a.name+' patched the engine: cover now shields blasts.',3)},

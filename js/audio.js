@@ -413,6 +413,26 @@
     jobs.push(() => { add('swing', D.whoosh(0.3, 500, 2600)); add('hit', D.thud(90, 0.3)); add('hit', D.thud(110, 0.25)); add('stab', D.thud(70, 0.4)); add('snap', D.click(900, 0.1)); });
     jobs.push(() => { add('brick', D.thud(130, 0.4)); add('shatter', D.shatter()); add('shatter', D.shatter()); add('ignite', D.whoosh(0.8, 200, 1200)); add('fire', D.fire()); });
     jobs.push(() => { add('body_fall', D.thud(60, 0.5)); add('metal_hit', D.metalHit()); });
+    // block mode: Minecraft-ish block foley, TNT and villagers
+    jobs.push(() => {
+      [['dirt', 300, 0.18], ['stone', 900, 0.14], ['wood', 520, 0.16], ['glass', 0, 0]].forEach(([m, f, d]) => {
+        for (let v = 0; v < 3; v++) {
+          if (m == 'glass') { add('blk_break_glass', D.shatter()); continue; }
+          const x = arr(d + 0.05); white(x, 1); filt(x, 'bp', f * (0.85 + R() * 0.3), 1.4); envExp(x, 0.001, d * 0.3);
+          const t = D.thud(f * 0.18, d); mix(x, t, 0.8); add('blk_break_' + m, norm(x, 0.8));
+        }
+      });
+      for (let v = 0; v < 3; v++) add('blk_place', D.thud(150 + v * 25, 0.18));
+      const h = arr(2.4); white(h, 1); filt(h, 'hp', 2500); for (let i = 0; i < h.length; i++) h[i] *= 0.55 + 0.45 * Math.sin(i / SR * 70) * Math.sin(i / SR * 13); envAD(h, 0.05, 0.3); add('tnt_fuse', norm(h, 0.55));
+      for (let v = 0; v < 2; v++) {
+        const b = arr(2.6); brown(b, 1); filt(b, 'lp', 450); envExp(b, 0.004, 0.55);
+        const c = arr(0.5); white(c, 1); filt(c, 'lp', 3500); envExp(c, 0.001, 0.09); mix(b, c, 0.9);
+        const sub = arr(1.2); sine(sub, (t) => 55 * Math.exp(-t * 2) + 22, 1); envExp(sub, 0.002, 0.35); mix(b, sub, 1.2);
+        for (let k = 0; k < 14; k++) { const d2 = D.click(800 + R() * 2400, 0.03); mix(b, d2, 0.25, 0.2 + R() * 1.6); }
+        add('tnt_boom', norm(b, 0.95));
+      }
+      for (let v = 0; v < 3; v++) { const x = arr(0.5); sine(x, (t) => (150 + v * 20) * (1 + 0.25 * Math.sin(t * 9)) * (t < 0.25 ? 1 : 0.8), 1); const y = arr(0.5); sine(y, (t) => (150 + v * 20) * 2.02, 0.4); mix(x, y, 0.5); filt(x, 'bp', 700, 0.8); envAD(x, 0.03, 0.45); add('villager', norm(x, 0.6)); }
+    });
     jobs.push(() => {
       const L = arr(7), Rr = arr(7);
       pink(L, 1); pink(Rr, 1);
