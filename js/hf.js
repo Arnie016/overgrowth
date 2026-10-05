@@ -9,13 +9,12 @@
     clicker: { idle: 'clicker_Idle', walk: 'clicker_Slow_Orc_Walk_inplace', run: 'runner_Standard_Forward_Charge_inplace', scream: 'clicker_Zombie_Scream', attack: 'clicker_Punch_Forward_with_Both_Fists', death: 'clicker_Shot_and_Blown_Back', stagger: 'clicker_Mummy_Stagger_inplace' },
   };
   const PROPS = ['sedan', 'barrel', 'crate', 'dumpster', 'fungus_cluster', 'fungus_column', 'fungal_cocoon', 'generator', 'boiler', 'sofa', 'wardrobe', 'kitchen_table', 'pharmacy_shelf', 'pharmacy_counter', 'plank'];
-  const TEX = ['asphalt_wet', 'brick_wet', 'fungal_wall', 'fungal_mat_floor', 'concrete_interior', 'steel_door'];
+  const TEX = ['asphalt_wet', 'brick_wet', 'fungal_wall', 'fungal_mat_floor', 'concrete_interior', 'steel_door', 'carpet', 'steel_grating'];
 
   // the artifact host serves binaries only under web types, so deployed copies carry a .wasm suffix
-  const SUFFIX = /^(localhost|127\.)/.test(location.hostname) ? '' : '.wasm';
+  // try the plain .glb first (localhost, GitHub Pages); fall back to the .wasm copy the artifact host needs
   function loadGLB(loader, url) {
-    url += SUFFIX;
-    return new Promise((res) => loader.load(url, res, undefined, () => res(null)));
+    return new Promise((res) => loader.load(url, res, undefined, () => loader.load(url + '.wasm', res, undefined, () => res(null))));
   }
   HF.load = async function (renderer, onProgress) {
     if (!THREE.GLTFLoader || !THREE.SkeletonUtils) return;
@@ -67,7 +66,8 @@
     model.rotation.y = Math.PI; // models face +z, the game faces -z
     if (opts.scale) model.scale.setScalar(opts.scale);
     if (opts.tint) model.traverse((o) => { if (o.isMesh) { o.material = o.material.clone(); o.material.color.multiply(new THREE.Color(opts.tint)); } });
-    model.traverse((o) => { if (o.isMesh) o.userData.e = group.userData.e; });
+    // skinned meshes keep a bind-pose bounding box that can sit far from the posed body; don't let it cull them
+    model.traverse((o) => { if (o.isMesh) { o.userData.e = group.userData.e; o.frustumCulled = false; } });
     group.add(model);
     const mixer = new THREE.AnimationMixer(model);
     const map = CLIPS[srcKind];
